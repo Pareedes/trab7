@@ -221,45 +221,49 @@ class ScheduleGAApp:
     def run_ag(self, pop_size, generations, crossover_rate, mutation_rate, elitism, tournament_size, selection_method):
         # Funçao que cria o individuo (solucao possivel para o horario)
         def create_individual():
-            total_aulas = sum(subj.aulas for subj in self.course_schedule)
-            if total_aulas > self.TOTAL_SLOTS:
-                raise ValueError(f"Total de aulas ({total_aulas}) excede o total de slots disponíveis ({self.TOTAL_SLOTS})")
-            
-            slots = [None] * self.TOTAL_SLOTS # Inicia os slots totais
+            while True:  # Tenta até conseguir alocar tudo
+                slots = [None] * self.TOTAL_SLOTS # Inicializa todos os slots da grade como vazios
+                sucesso = True
 
-            for subj in self.course_schedule:
-                aulas_restantes = subj.aulas
-                turma_offset = (subj.turma - 1) * self.DIAS * self.HORARIOS_POR_DIA
-                dias = list(range(self.DIAS))
-                random.shuffle(dias) # Embaralha os dias para variar alocação
-
-                for dia in dias:
-                    if aulas_restantes == 0:
-                        break
-                    start_horas = list(range(self.HORARIOS_POR_DIA))
-                    random.shuffle(start_horas) # Embaralha as horas para variar alocação
-
-                    # Tenta alocar as aulas em horários
-                    for hora in start_horas:
-                        idx = turma_offset + dia * self.HORARIOS_POR_DIA + hora
-                        if all(
-                            idx2 < turma_offset + (dia + 1) * self.HORARIOS_POR_DIA and slots[idx2] is None
-                            for idx2 in range(idx, idx + aulas_restantes)
-                        ):
-                            for i in range(aulas_restantes):
-                                slots[idx + i] = subj
-                            aulas_restantes = 0
-                            break
-
-                    # Caso o bloco de horarios não encaixe, preenche hora a hora
-                    for hora in range(self.HORARIOS_POR_DIA):
+                for subj in self.course_schedule:   # Percorre toda matéria a ser alocada
+                    aulas_restantes = subj.aulas
+                    turma_offset = (subj.turma - 1) * self.DIAS * self.HORARIOS_POR_DIA  # Calcula o deslocamento na lista de slots com base na turma, dias e horários
+                    dias = list(range(self.DIAS))
+                    random.shuffle(dias) # Embaralha os dias para variar a alocação a cada tentativa
+                    
+                    for dia in dias:
                         if aulas_restantes == 0:
-                            break
-                        idx = turma_offset + dia * self.HORARIOS_POR_DIA + hora
-                        if slots[idx] is None:
-                            slots[idx] = subj
-                            aulas_restantes -= 1
-            return slots
+                            break # Se já alocou todas as aulas, sai do loop
+                        start_horas = list(range(self.HORARIOS_POR_DIA))
+                        random.shuffle(start_horas)
+                        
+                        for hora in start_horas:
+                            idx = turma_offset + dia * self.HORARIOS_POR_DIA + hora
+                            
+                            if all(
+                                idx2 < turma_offset + (dia + 1) * self.HORARIOS_POR_DIA and slots[idx2] is None
+                                for idx2 in range(idx, idx + aulas_restantes)
+                            ):
+                                for i in range(aulas_restantes): # Se houver espaço suficiente e contínuo no dia para todas as aulas restantes
+                                    slots[idx + i] = subj
+                                aulas_restantes = 0 # Aloca a disciplina nos slots contínuos
+                                break
+
+                        for hora in range(self.HORARIOS_POR_DIA):
+                            if aulas_restantes == 0:
+                                break
+                            # Verifica se o slot está vazio
+                            # Se o slot estiver vazio, aloca a disciplina
+                            idx = turma_offset + dia * self.HORARIOS_POR_DIA + hora
+                            if slots[idx] is None:
+                                slots[idx] = subj
+                                aulas_restantes -= 1
+                    # Verifica se ainda há aulas restantes
+                    if aulas_restantes > 0:
+                        sucesso = False
+                        break
+                if sucesso:
+                    return slots
 
         # Primeira geraçao aleatoria
         population = [create_individual() for _ in range(pop_size)]
