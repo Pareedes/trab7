@@ -13,6 +13,8 @@ class CourseSubject:
 
 class ScheduleGAApp:
     def __init__(self, root):
+
+        # Configuração da janela
         self.root = root
         self.root.title("Algoritmo Genético - Horário")
         self.root.configure(bg="#2E2E2E")
@@ -24,13 +26,16 @@ class ScheduleGAApp:
         self.canvas_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
         self.entries = {}
+
+        # Inputs dos parâmetros automaticos
         self.add_input("Tamanho da população", "30")
         self.add_input("Gerações", "100")
         self.add_input("Prob. Cruzamento", "0.9")
         self.add_input("Prob. Mutação", "0.01")
-        self.add_input("Elitismo", "2")
-        self.add_input("Tam. Torneio", "3")
+        self.add_input("Elitismo", "4")
+        self.add_input("Tam. Torneio", "5")
 
+        # Seleção do metodo
         self.selecao_var = tk.StringVar(value="Torneio")
         tk.Label(self.controls, text="Método de Seleção:", bg="#2E2E2E", fg="white").pack()
         ttk.Combobox(self.controls, textvariable=self.selecao_var, values=["Torneio", "Roleta"]).pack(pady=5)
@@ -41,6 +46,7 @@ class ScheduleGAApp:
         self.result_label = tk.Label(self.controls, text="", bg="#2E2E2E", fg="white", justify=tk.LEFT)
         self.result_label.pack(pady=10)
 
+        # Parametros do algoritmo (quantidade periodos dias e horarios)
         self.TURMAS = 6
         self.DIAS = 5
         self.HORARIOS_POR_DIA = 4
@@ -93,7 +99,7 @@ class ScheduleGAApp:
         ]
 
 
-
+    # Funções de interface
     def add_input(self, label, default):
         tk.Label(self.controls, text=label, bg="#2E2E2E", fg="white").pack()
         entry = tk.Entry(self.controls)
@@ -101,8 +107,10 @@ class ScheduleGAApp:
         entry.pack(pady=5)
         self.entries[label] = entry
 
+    # Inicia o algoritmo genético
     def start_algorithm(self):
         try:
+            # Utiliza os valores inseridos
             pop_size = int(self.entries["Tamanho da população"].get())
             generations = int(self.entries["Gerações"].get())
             crossover_rate = float(self.entries["Prob. Cruzamento"].get())
@@ -111,6 +119,7 @@ class ScheduleGAApp:
             tournament_size = int(self.entries["Tam. Torneio"].get())
             selection_method = self.selecao_var.get()
 
+            # Executa e mostra o melhor horario encontrado
             best_schedule = self.run_ag(
                 pop_size, generations, crossover_rate,
                 mutation_rate, elitism, tournament_size,
@@ -123,6 +132,7 @@ class ScheduleGAApp:
 
     ###
     
+    # Fitness atribui pontuação ao individuo (horario)
     def fitness(self, individual):
         score = 0
         professor_horarios = {}
@@ -160,20 +170,21 @@ class ScheduleGAApp:
                 # Recompensa por ter menos disciplinas diferentes no dia
                 score += (self.HORARIOS_POR_DIA - len(disciplinas_no_dia)) * 2
                 
-                # Verificar se a disciplina está em múltiplos dias quando poderia estar em menos
+                # Verifica se a disciplina está em múltiplos dias quando poderia estar em menos
                 for subj in disciplinas_no_dia:
                     if subj not in disciplina_dias:
                         disciplina_dias[subj] = set()
                     disciplina_dias[subj].add(dia)
         
-        # Penalizar disciplinas distribuídas em muitos dias
+        # Penaliza disciplinas distribuídas em muitos dias
         for subj, dias in disciplina_dias.items():
             if len(dias) > 1:
-                # Quanto mais dias, maior a penalidade
+                # Mais dias, maior a penalidade
                 score -= (len(dias) - 1) * 2
         
         return score
 
+    # Selecao de pais por metodo
     def selecionar_pais(self, population, fitnesses, method, k):
         if method == "Torneio":
             pais = []
@@ -188,6 +199,7 @@ class ScheduleGAApp:
             pais = random.choices(population, weights=chances, k=2)
             return pais
 
+    # Operador de cruzamento com ponto unico
     def crossover(self, parent1, parent2, rate):
         if random.random() > rate:
             return parent1[:], parent2[:]
@@ -196,6 +208,7 @@ class ScheduleGAApp:
         child2 = parent2[:point] + parent1[point:]
         return child1, child2
 
+    # Troca dois elementos do indivíduo com probabilidade
     def mutar(self, individuo, rate):
         for i in range(len(individuo)):
             if random.random() < rate:
@@ -206,22 +219,27 @@ class ScheduleGAApp:
     ###
 
     def run_ag(self, pop_size, generations, crossover_rate, mutation_rate, elitism, tournament_size, selection_method):
+        # Funçao que cria o individuo (solucao possivel para o horario)
         def create_individual():
             total_aulas = sum(subj.aulas for subj in self.course_schedule)
             if total_aulas > self.TOTAL_SLOTS:
                 raise ValueError(f"Total de aulas ({total_aulas}) excede o total de slots disponíveis ({self.TOTAL_SLOTS})")
-            slots = [None] * self.TOTAL_SLOTS
+            
+            slots = [None] * self.TOTAL_SLOTS # Inicia os slots totais
 
             for subj in self.course_schedule:
                 aulas_restantes = subj.aulas
                 turma_offset = (subj.turma - 1) * self.DIAS * self.HORARIOS_POR_DIA
                 dias = list(range(self.DIAS))
-                random.shuffle(dias)
+                random.shuffle(dias) # Embaralha os dias para variar alocação
+
                 for dia in dias:
                     if aulas_restantes == 0:
                         break
                     start_horas = list(range(self.HORARIOS_POR_DIA))
-                    random.shuffle(start_horas)
+                    random.shuffle(start_horas) # Embaralha as horas para variar alocação
+
+                    # Tenta alocar as aulas em horários
                     for hora in start_horas:
                         idx = turma_offset + dia * self.HORARIOS_POR_DIA + hora
                         if all(
@@ -232,6 +250,8 @@ class ScheduleGAApp:
                                 slots[idx + i] = subj
                             aulas_restantes = 0
                             break
+
+                    # Caso o bloco de horarios não encaixe, preenche hora a hora
                     for hora in range(self.HORARIOS_POR_DIA):
                         if aulas_restantes == 0:
                             break
@@ -241,19 +261,23 @@ class ScheduleGAApp:
                             aulas_restantes -= 1
             return slots
 
+        # Primeira geraçao aleatoria
         population = [create_individual() for _ in range(pop_size)]
+
         for gen in range(generations):
             fitnesses = [self.fitness(ind) for ind in population]
             nova_pop = []
 
-            # Elitismo
+            # Elitismo para manter os melhores
             elite_indices = sorted(range(len(fitnesses)), key=lambda i: fitnesses[i], reverse=True)[:elitism]
             for idx in elite_indices:
                 nova_pop.append(population[idx][:])
 
             # Reprodução
             while len(nova_pop) < pop_size:
+                # Seleciona os pais
                 p1, p2 = self.selecionar_pais(population, fitnesses, selection_method, tournament_size)
+                # Aplica crossover e mutaçao
                 f1, f2 = self.crossover(p1, p2, crossover_rate)
                 self.mutar(f1, mutation_rate)
                 self.mutar(f2, mutation_rate)
@@ -268,6 +292,7 @@ class ScheduleGAApp:
         best_idx = max(range(len(fitnesses)), key=lambda i: fitnesses[i])
         return population[best_idx]
 
+    # Exibe o horario encontrado
     def display_schedule(self, schedule):
         for widget in self.canvas_frame.winfo_children():
             widget.destroy()
@@ -278,6 +303,7 @@ class ScheduleGAApp:
         for turma in range(self.TURMAS):
             tk.Label(frame, text=f"Turma {turma + 1}", bg="gray", fg="white", font=("Arial", 10, "bold")).grid(row=0, column=turma+1, sticky="nsew")
 
+        # Preenche a grade com os horários
         for dia in range(self.DIAS):
             for hora in range(self.HORARIOS_POR_DIA):
                 slot_idx = dia * self.HORARIOS_POR_DIA + hora
